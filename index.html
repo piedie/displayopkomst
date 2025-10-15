@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studentenverkiezingen - Live Opkomst</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 30px;
+            padding: 60px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            font-size: 72px;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .deadline {
+            background: #ff6b6b;
+            color: white;
+            padding: 25px 50px;
+            border-radius: 20px;
+            font-size: 48px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.3);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 50px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 50px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-card.highlight {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .stat-label {
+            font-size: 36px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .stat-value {
+            font-size: 120px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .stat-sublabel {
+            font-size: 28px;
+            opacity: 0.8;
+            margin-top: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 32px;
+            color: #666;
+            padding: 100px;
+        }
+
+        .error {
+            background: #ff6b6b;
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 24px;
+            color: #999;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .stat-card.highlight .stat-value {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗳️ Studentenverkiezingen 2025</h1>
+            <div class="deadline">⏰ Tot 13:00 uur kun je stemmen!</div>
+        </div>
+
+        <div id="content" class="loading">
+            Data laden...
+        </div>
+
+        <div class="logo">LANDSTEDE STADIONPLEIN</div>
+    </div>
+
+    <script>
+        // ⚠️ VERVANG DEZE MET JOUW GEGEVENS
+        const SUPABASE_URL = 'https://dplosfxwhsnxlblwznxi.supabase.co';
+        const SUPABASE_SERVICE_KEY = 'JOUW_SERVICE_ROLE_KEY_HeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbG9zZnh3aHNueGxibHd6bnhpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDQ2NzgzNCwiZXhwIjoyMDc2MDQzODM0fQ.KmW83MeTraMKpgyS9kNaQpBWpwpv8j76xM7o7lofM1UIER';
+        const REFRESH_INTERVAL = 10000; // Ververs elke 10 seconden
+
+        async function loadStats() {
+            try {
+                // Haal alle studenten op
+                const studentsResponse = await fetch(`${SUPABASE_URL}/rest/v1/students?select=bpv,gestemd`, {
+                    headers: {
+                        'apikey': SUPABASE_SERVICE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+                    }
+                });
+                
+                if (!studentsResponse.ok) throw new Error('Kan data niet laden');
+                
+                const students = await studentsResponse.json();
+
+                // Bereken statistieken
+                const totaalStemgerechtigd = students.length;
+                const bpvStudenten = students.filter(s => s.bpv).length;
+                const nietBpvStudenten = totaalStemgerechtigd - bpvStudenten;
+                
+                const fysiekGestemd = students.filter(s => !s.bpv && s.gestemd).length;
+                const bpvDigitaalGestemd = students.filter(s => s.bpv && s.gestemd).length;
+                const totaalUitgebracht = fysiekGestemd + bpvDigitaalGestemd;
+                
+                const opkomstPercentage = totaalStemgerechtigd > 0 
+                    ? ((totaalUitgebracht / totaalStemgerechtigd) * 100).toFixed(1)
+                    : '0.0';
+
+                // Toon statistieken
+                document.getElementById('content').innerHTML = `
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Stemgerechtigd</div>
+                            <div class="stat-value">${totaalStemgerechtigd}</div>
+                            <div class="stat-sublabel">${bpvStudenten} op BPV</div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-label">Uitgebrachte Stemmen</div>
+                            <div class="stat-value">${totaalUitgebracht}</div>
+                            <div class="stat-sublabel">${fysiekGestemd} fysiek + ${bpvDigitaalGestemd} digitaal</div>
+                        </div>
+
+                        <div class="stat-card highlight">
+                            <div class="stat-label">💯 Opkomstpercentage</div>
+                            <div class="stat-value">${opkomstPercentage}%</div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        ⚠️ Kan geen verbinding maken met de database.<br>
+                        Check je Supabase configuratie.
+                    </div>
+                `;
+            }
+        }
+
+        // Laad direct bij start
+        loadStats();
+
+        // Ververs automatisch
+        setInterval(loadStats, REFRESH_INTERVAL);
+    </script>
+</body>
+</html>
